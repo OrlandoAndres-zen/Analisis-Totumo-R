@@ -181,5 +181,5 @@ IC_sig2(pesoint_arbol1)
 # Varianza y desviación estándar del árbol 2
 IC_sig2(pesoint_arbol2)
 
-git init
+
 

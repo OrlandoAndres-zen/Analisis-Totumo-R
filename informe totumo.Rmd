@@ -1,0 +1,556 @@
+---
+title: "Análisis Estadístico Descriptivo: Peso de Frutos de Totumo (*Crescentia cujete* L.)"
+subtitle: "Medidas Descriptivas, Análisis de Distribución y Correlación entre Variables"
+author: "Dairys Daza"
+date: "Universidad Nacional de Colombia -- Sede La Paz"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    number_sections: true
+    latex_engine: xelatex
+    keep_tex: false
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{float}
+  - \usepackage{amsmath}
+  - \renewcommand{\contentsname}{Tabla de Contenido}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.align = "center",
+  fig.width  = 6,
+  fig.height = 4,
+  fig.pos    = "H"
+)
+```
+
+# Introducción
+
+El presente informe desarrolla un análisis estadístico descriptivo sobre tres variables
+cuantitativas continuas medidas en 24 frutos de totumo (*Crescentia cujete* L.),
+provenientes de dos árboles distintos (Árbol 1: $n_1 = 13$; Árbol 2: $n_2 = 11$).
+Las variables analizadas son: **peso total**, **peso interno** (pulpa y semillas) y
+**peso de la superficie** (cáscara). La estructura aditiva del fruto implica que
+
+$$\text{Peso total}_i = \text{Peso interno}_i + \text{Peso superficie}_i, \quad i = 1,\ldots,24.$$
+
+El análisis comprende: (i) medidas de tendencia central, (ii) medidas de dispersión
+absoluta y relativa, (iii) medidas de forma (asimetría y curtosis), (iv) análisis de
+covarianza y correlación de Pearson, y (v) representaciones gráficas complementarias.
+Todos los cálculos se realizaron en el entorno estadístico **R**.
+
+# Descripción de los Datos
+
+```{r paquetes}
+library(tidyverse)
+library(moments)
+library(knitr)
+library(kableExtra)
+```
+
+```{r datos}
+totumos <- data.frame(
+  arbol = factor(
+    c(1,1,1,2,2,1,2,2,2,1,1,1,1,2,2,2,1,1,1,1,2,2,2,1),
+    labels = c("Árbol 1","Árbol 2")
+  ),
+  id_fruto = c(27,69,93,4,37,10,61,11,6,16,90,80,56,33,30,10,
+               21,23,83,82,7,2,3,58),
+  peso_total     = c(779,782,846,689,921,321,481,811,650,708,
+                     358,449,735,568,771,572,711,739,435,226,
+                     721,511,232,269),
+  peso_interno   = c(632,610,630,561,546,234,286,629,476,492,
+                     277,360,584,435,465,377,465,530,350,140,
+                     548,452,121,206),
+  peso_superficie= c(147,172,216,128,375,87,195,182,174,216,
+                     81,89,151,133,306,195,246,209,85,86,
+                     173,59,111,63)
+)
+
+arbol1 <- filter(totumos, arbol == "Árbol 1")
+arbol2 <- filter(totumos, arbol == "Árbol 2")
+```
+
+La Tabla 1 presenta la base de datos completa.
+
+```{r tabla-datos}
+kable(
+  totumos[, c("arbol","id_fruto","peso_total","peso_interno","peso_superficie")],
+  col.names = c("Árbol","ID","Peso total","Peso interno","Peso superficie"),
+  caption   = "Base de datos: pesos de frutos de totumo ($n = 24$)",
+  booktabs  = TRUE
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"), font_size = 9)
+```
+
+\medskip
+El conjunto está formado por **24 observaciones** y **3 variables cuantitativas
+continuas**, con una variable de agrupación (árbol). No se detectaron datos faltantes.
+
+# Medidas de Tendencia Central
+
+## Media aritmética
+
+La media muestral se define como
+
+$$\bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i.$$
+
+```{r media}
+cv_fn <- function(x) sd(x)/mean(x)*100
+
+media_tab <- data.frame(
+  Grupo   = c("Árbol 1","Árbol 2","Conjunto general"),
+  n       = c(nrow(arbol1), nrow(arbol2), nrow(totumos)),
+  Media_T = c(mean(arbol1$peso_total),   mean(arbol2$peso_total),   mean(totumos$peso_total)),
+  Media_I = c(mean(arbol1$peso_interno), mean(arbol2$peso_interno), mean(totumos$peso_interno)),
+  Media_S = c(mean(arbol1$peso_superficie), mean(arbol2$peso_superficie),
+              mean(totumos$peso_superficie))
+)
+
+kable(
+  media_tab, digits = 2, booktabs = TRUE,
+  col.names = c("Grupo","$n$","$\\bar{x}_{\\text{total}}$",
+                "$\\bar{x}_{\\text{interno}}$","$\\bar{x}_{\\text{superficie}}$"),
+  caption = "Media aritmética de las tres variables de peso",
+  escape  = FALSE
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"))
+```
+
+El Árbol 2 registra una media de peso total superior al Árbol 1
+(`r round(mean(arbol2$peso_total),2)` vs. `r round(mean(arbol1$peso_total),2)`),
+diferencia de `r round(mean(arbol2$peso_total)-mean(arbol1$peso_total),2)` unidades.
+Sin embargo, la media es sensible a valores extremos, por lo que debe complementarse con
+la mediana.
+
+## Mediana
+
+Para $n$ datos ordenados, la mediana es
+
+$$Me =
+\begin{cases}
+x_{((n+1)/2)} & \text{si } n \text{ es impar,}\\[4pt]
+\dfrac{x_{(n/2)}+x_{(n/2+1)}}{2} & \text{si } n \text{ es par.}
+\end{cases}$$
+
+```{r mediana}
+mediana_tab <- data.frame(
+  Grupo    = c("Árbol 1","Árbol 2","Conjunto general"),
+  Med_T    = c(median(arbol1$peso_total),   median(arbol2$peso_total),
+               median(totumos$peso_total)),
+  Med_I    = c(median(arbol1$peso_interno), median(arbol2$peso_interno),
+               median(totumos$peso_interno)),
+  Med_S    = c(median(arbol1$peso_superficie), median(arbol2$peso_superficie),
+               median(totumos$peso_superficie))
+)
+
+kable(
+  mediana_tab, digits = 2, booktabs = TRUE,
+  col.names = c("Grupo","$Me_{\\text{total}}$",
+                "$Me_{\\text{interno}}$","$Me_{\\text{superficie}}$"),
+  caption = "Mediana de las tres variables de peso",
+  escape  = FALSE
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"))
+```
+
+En ambos grupos, la mediana del peso total supera a la media
+($Me_1 = `r median(arbol1$peso_total)`$, $\bar{x}_1 = `r round(mean(arbol1$peso_total),2)`$),
+lo que anticipa la presencia de asimetría negativa.
+
+# Medidas de Dispersión
+
+## Varianza y desviación estándar muestral
+
+La varianza muestral y la desviación estándar se definen respectivamente como
+
+$$S^2 = \frac{1}{n-1}\sum_{i=1}^{n}(x_i-\bar{x})^2, \qquad S = \sqrt{S^2}.$$
+
+```{r dispersion}
+disp_tab <- data.frame(
+  Grupo = c("Árbol 1","Árbol 2","Conjunto general"),
+  Var   = c(var(arbol1$peso_total),   var(arbol2$peso_total),
+            var(totumos$peso_total)),
+  SD    = c(sd(arbol1$peso_total),    sd(arbol2$peso_total),
+            sd(totumos$peso_total)),
+  CV    = c(cv_fn(arbol1$peso_total), cv_fn(arbol2$peso_total),
+            cv_fn(totumos$peso_total))
+)
+
+kable(
+  disp_tab, digits = 2, booktabs = TRUE,
+  col.names = c("Grupo","$S^2$","$S$","$CV$ (\\%)"),
+  caption = "Varianza, desviación estándar y coeficiente de variación del peso total",
+  escape  = FALSE
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"))
+```
+
+## Coeficiente de variación
+
+El coeficiente de variación (CV) es una medida de dispersión relativa:
+
+$$CV = \frac{S}{\bar{x}} \times 100\%.$$
+
+Permite comparar la variabilidad entre grupos con distintas medias, eliminando el efecto
+de escala. Un $CV > 25\%$ indica heterogeneidad considerable.
+El Árbol 1 presenta $CV = `r round(cv_fn(arbol1$peso_total),2)`\%$ y el Árbol 2
+$CV = `r round(cv_fn(arbol2$peso_total),2)`\%$: ambos superan el 25 %, pero el
+Árbol 1 es más disperso en términos relativos.
+
+# Medidas de Forma
+
+## Asimetría (*skewness*)
+
+El coeficiente de asimetría cuantifica la desviación de la distribución respecto a la
+simetría:
+
+$$g_1 = \frac{m_3}{m_2^{3/2}}, \quad m_k = \frac{1}{n}\sum_{i=1}^{n}(x_i-\bar{x})^k.$$
+
+$g_1 < 0$: cola izquierda más extensa (asimetría negativa).
+$g_1 > 0$: cola derecha más extensa (asimetría positiva).
+$g_1 \approx 0$: distribución aproximadamente simétrica.
+
+## Curtosis (*kurtosis*)
+
+El coeficiente de curtosis mide la concentración en las colas respecto a la distribución
+normal:
+
+$$g_2 = \frac{m_4}{m_2^{2}}.$$
+
+Bajo la convención del paquete `moments`: $g_2 = 3$ (mesocúrtica, distribución normal),
+$g_2 < 3$ (platicúrtica), $g_2 > 3$ (leptocúrtica, colas más pesadas).
+
+```{r forma}
+forma_tab <- data.frame(
+  Grupo   = c("Árbol 1","Árbol 2","Conjunto general"),
+  Asim_T  = c(skewness(arbol1$peso_total),   skewness(arbol2$peso_total),
+              skewness(totumos$peso_total)),
+  Kurt_T  = c(kurtosis(arbol1$peso_total),   kurtosis(arbol2$peso_total),
+              kurtosis(totumos$peso_total)),
+  Asim_I  = c(skewness(arbol1$peso_interno), skewness(arbol2$peso_interno),
+              skewness(totumos$peso_interno)),
+  Kurt_I  = c(kurtosis(arbol1$peso_interno), kurtosis(arbol2$peso_interno),
+              kurtosis(totumos$peso_interno)),
+  Asim_S  = c(skewness(arbol1$peso_superficie), skewness(arbol2$peso_superficie),
+              skewness(totumos$peso_superficie)),
+  Kurt_S  = c(kurtosis(arbol1$peso_superficie), kurtosis(arbol2$peso_superficie),
+              kurtosis(totumos$peso_superficie))
+)
+
+kable(
+  forma_tab, digits = 3, booktabs = TRUE,
+  col.names = c("Grupo",
+                "$g_1^{(T)}$","$g_2^{(T)}$",
+                "$g_1^{(I)}$","$g_2^{(I)}$",
+                "$g_1^{(S)}$","$g_2^{(S)}$"),
+  caption = "Asimetría y curtosis para las tres variables (T: total, I: interno, S: superficie)",
+  escape  = FALSE
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"))
+```
+
+Los coeficientes de asimetría negativos en peso total y peso interno indican cola
+izquierda en ambos grupos, consistente con $Me > \bar{x}$. El peso de la superficie
+presenta asimetría positiva, especialmente en el Árbol 2, señalando la presencia de
+observaciones con valores atípicamente altos en esa componente. Los coeficientes de
+curtosis del peso de la superficie en el Árbol 2 superan 3, indicando distribuciones
+leptocúrticas compatibles con valores extremos.
+
+# Resumen Estadístico Consolidado
+
+```{r resumen-completo}
+cv_fn2 <- function(x) sd(x)/mean(x)*100
+
+resumen_fn <- function(df, grupo) {
+  df %>%
+    pivot_longer(cols = c(peso_total, peso_interno, peso_superficie),
+                 names_to = "variable", values_to = "valor") %>%
+    group_by(variable) %>%
+    summarise(
+      Grupo    = grupo,
+      n        = n(),
+      Media    = mean(valor),
+      Mediana  = median(valor),
+      Varianza = var(valor),
+      SD       = sd(valor),
+      CV       = cv_fn2(valor),
+      Asimetria= skewness(valor),
+      Curtosis = kurtosis(valor),
+      .groups  = "drop"
+    ) %>%
+    mutate(variable = recode(variable,
+      peso_total      = "Peso Total",
+      peso_interno    = "Peso Interno",
+      peso_superficie = "Peso Superficie"
+    ))
+}
+
+res <- bind_rows(
+  resumen_fn(arbol1,  "Árbol 1"),
+  resumen_fn(arbol2,  "Árbol 2"),
+  resumen_fn(totumos, "General")
+) %>%
+  arrange(variable, Grupo) %>%
+  select(variable, Grupo, n, Media, Mediana, Varianza, SD, CV, Asimetria, Curtosis)
+
+kable(
+  res, digits = 2, booktabs = TRUE, longtable = TRUE,
+  col.names = c("Variable","Grupo","$n$","$\\bar{x}$","$Me$",
+                "$S^2$","$S$","$CV$\\%","$g_1$","$g_2$"),
+  caption = "Resumen estadístico descriptivo completo",
+  escape  = FALSE
+) %>%
+  kable_styling(latex_options = c("striped","hold_position","repeat_header"),
+                font_size = 9)
+```
+
+# Relación entre Variables
+
+## Covarianza
+
+La covarianza muestral entre dos variables $X$ e $Y$ es
+
+$$\widehat{\text{Cov}}(X,Y) = \frac{1}{n-1}\sum_{i=1}^{n}(x_i-\bar{x})(y_i-\bar{y}).$$
+
+Un valor positivo indica que ambas variables tienden a desviarse en la misma dirección
+respecto a sus medias.
+
+```{r covarianza}
+mat_cov <- cov(totumos[, c("peso_total","peso_interno","peso_superficie")])
+rownames(mat_cov) <- colnames(mat_cov) <- c("Peso Total","Peso Interno","Peso Superficie")
+
+kable(
+  mat_cov, digits = 2, booktabs = TRUE,
+  caption = "Matriz de covarianzas muestrales ($n = 24$)"
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"))
+```
+
+Todas las covarianzas son positivas, lo que indica covariación directa entre las tres
+variables. La mayor covarianza corresponde al par (Peso Total, Peso Interno), coherente
+con que el peso interno constituye la parte principal del peso total.
+
+## Correlación de Pearson
+
+El coeficiente de correlación de Pearson estandariza la covarianza:
+
+$$r_{XY} = \frac{\widehat{\text{Cov}}(X,Y)}{S_X \cdot S_Y}
+= \frac{\displaystyle\sum_{i=1}^{n}(x_i-\bar{x})(y_i-\bar{y})}
+       {\sqrt{\displaystyle\sum_{i=1}^{n}(x_i-\bar{x})^2}
+        \sqrt{\displaystyle\sum_{i=1}^{n}(y_i-\bar{y})^2}}, \quad r_{XY}\in[-1,1].$$
+
+```{r correlacion-general}
+mat_cor <- cor(totumos[, c("peso_total","peso_interno","peso_superficie")])
+rownames(mat_cor) <- colnames(mat_cor) <- c("Peso Total","Peso Interno","Peso Superficie")
+
+kable(
+  mat_cor, digits = 4, booktabs = TRUE,
+  caption = "Matriz de correlación de Pearson -- conjunto general ($n = 24$)"
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"))
+```
+
+```{r correlacion-por-arbol}
+pares <- c("Peso Total -- Peso Interno",
+           "Peso Total -- Peso Superficie",
+           "Peso Interno -- Peso Superficie")
+
+cor_tab <- data.frame(
+  Par     = pares,
+  Arbol1  = c(
+    cor(arbol1$peso_total,      arbol1$peso_interno),
+    cor(arbol1$peso_total,      arbol1$peso_superficie),
+    cor(arbol1$peso_interno,    arbol1$peso_superficie)
+  ),
+  Arbol2  = c(
+    cor(arbol2$peso_total,      arbol2$peso_interno),
+    cor(arbol2$peso_total,      arbol2$peso_superficie),
+    cor(arbol2$peso_interno,    arbol2$peso_superficie)
+  ),
+  General = c(
+    cor(totumos$peso_total,     totumos$peso_interno),
+    cor(totumos$peso_total,     totumos$peso_superficie),
+    cor(totumos$peso_interno,   totumos$peso_superficie)
+  )
+)
+
+kable(
+  cor_tab, digits = 4, booktabs = TRUE,
+  col.names = c("Par de variables","Árbol 1","Árbol 2","General"),
+  caption = "Correlación de Pearson por árbol y para el conjunto general"
+) %>%
+  kable_styling(latex_options = c("striped","hold_position"))
+```
+
+La correlación Peso Total -- Peso Interno es muy fuerte en el conjunto general
+($r = `r round(mat_cor["Peso Total","Peso Interno"],4)`$). La correlación entre Peso
+Interno y Peso Superficie es moderada a nivel general
+($r = `r round(mat_cor["Peso Interno","Peso Superficie"],4)`$), pero
+notablemente más débil en el Árbol 2
+($r = `r round(cor(arbol2$peso_interno, arbol2$peso_superficie),4)`$)
+que en el Árbol 1
+($r = `r round(cor(arbol1$peso_interno, arbol1$peso_superficie),4)`$),
+lo que indica mayor heterogeneidad en la proporción interna/superficie en ese grupo.
+
+# Representaciones Gráficas
+
+## Histogramas del peso total
+
+```{r hist-total, fig.cap="Histogramas del peso total por árbol", fig.height=4.5}
+ggplot(totumos, aes(x = peso_total)) +
+  geom_histogram(binwidth = 100, fill = "grey40", color = "white") +
+  facet_wrap(~ arbol, ncol = 2) +
+  geom_vline(data = totumos %>% group_by(arbol) %>%
+               summarise(media = mean(peso_total), .groups="drop"),
+             aes(xintercept = media), linetype = "dashed", color = "black") +
+  labs(x = "Peso total", y = "Frecuencia absoluta",
+       title = "Distribución del peso total por árbol",
+       subtitle = "Línea discontinua: media muestral") +
+  theme_bw()
+```
+
+## Diagramas de caja
+
+```{r boxplot, fig.cap="Diagramas de caja: peso total por árbol", fig.height=4}
+ggplot(totumos, aes(x = arbol, y = peso_total)) +
+  geom_boxplot(fill = "grey80", outlier.shape = 16, outlier.color = "black") +
+  geom_jitter(width = 0.07, alpha = 0.5, size = 1.8) +
+  labs(x = "Árbol", y = "Peso total",
+       title = "Comparación de la distribución del peso total entre árboles") +
+  theme_bw()
+```
+
+```{r boxplot-componentes, fig.cap="Diagramas de caja por componente y árbol", fig.height=4.5}
+totumos_long <- totumos %>%
+  pivot_longer(cols = c(peso_total, peso_interno, peso_superficie),
+               names_to  = "componente", values_to = "peso") %>%
+  mutate(componente = recode(componente,
+    peso_total      = "Peso Total",
+    peso_interno    = "Peso Interno",
+    peso_superficie = "Peso Superficie"
+  ))
+
+ggplot(totumos_long, aes(x = arbol, y = peso, fill = arbol)) +
+  geom_boxplot(alpha = 0.6, outlier.shape = 16) +
+  facet_wrap(~ componente, scales = "free_y") +
+  labs(x = "Árbol", y = "Peso", fill = "Árbol",
+       title = "Distribución de cada componente de peso por árbol") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+El diagrama de caja del peso de la superficie del Árbol 2 muestra dos valores atípicos
+superiores, consistentes con los coeficientes de curtosis $g_2 > 3$ observados en ese
+grupo.
+
+## Diagramas de dispersión
+
+```{r dispersion-plots, fig.cap="Diagramas de dispersión entre pares de variables", fig.height=4.5}
+p1 <- ggplot(totumos, aes(x = peso_interno, y = peso_total, shape = arbol)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed",
+              linewidth = 0.7) +
+  labs(x = "Peso interno", y = "Peso total", shape = "Árbol",
+       title = expression(paste("PT vs PI  (", r, "=0.9736)"))) +
+  theme_bw()
+
+p2 <- ggplot(totumos, aes(x = peso_superficie, y = peso_total, shape = arbol)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed",
+              linewidth = 0.7) +
+  labs(x = "Peso superficie", y = "Peso total", shape = "Árbol",
+       title = expression(paste("PT vs PS  (", r, "=0.8567)"))) +
+  theme_bw()
+
+p3 <- ggplot(totumos, aes(x = peso_interno, y = peso_superficie, shape = arbol)) +
+  geom_point(size = 2) +
+  geom_smooth(method = "lm", se = FALSE, color = "black", linetype = "dashed",
+              linewidth = 0.7) +
+  labs(x = "Peso interno", y = "Peso superficie", shape = "Árbol",
+       title = expression(paste("PI vs PS  (", r, "=0.6636)"))) +
+  theme_bw()
+
+library(patchwork)
+(p1 | p2) / p3 + plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+```
+
+## Gráfico de densidad comparativo
+
+```{r densidad, fig.cap="Densidades estimadas del peso total por árbol", fig.height=3.5}
+medias_df <- data.frame(
+  arbol = c("Árbol 1","Árbol 2"),
+  media = c(mean(arbol1$peso_total), mean(arbol2$peso_total))
+)
+
+ggplot(totumos, aes(x = peso_total, linetype = arbol)) +
+  geom_density(linewidth = 0.8) +
+  geom_vline(data = medias_df, aes(xintercept = media, linetype = arbol),
+             linewidth = 0.6, alpha = 0.6) +
+  scale_linetype_manual(values = c("solid","dashed")) +
+  labs(x = "Peso total", y = "Densidad estimada", linetype = "Árbol",
+       title = "Densidad del peso total por árbol",
+       subtitle = "Líneas verticales: medias muestrales") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+# Discusión
+
+Los resultados permiten caracterizar cuantitativamente el comportamiento distribucional
+de las tres variables de peso en los dos grupos.
+
+**Tendencia central.** El Árbol 2 presenta una media de peso total levemente superior
+($\bar{x}_2 = `r round(mean(arbol2$peso_total),2)`$ vs.
+$\bar{x}_1 = `r round(mean(arbol1$peso_total),2)`$). En ambos grupos, $Me > \bar{x}$,
+lo que es coherente con los coeficientes de asimetría negativos obtenidos.
+
+**Dispersión.** El Árbol 1 exhibe mayor variabilidad tanto en términos absolutos
+($S_1 = `r round(sd(arbol1$peso_total),2)`$ vs. $S_2 = `r round(sd(arbol2$peso_total),2)`$)
+como relativos
+($CV_1 = `r round(cv_fn(arbol1$peso_total),2)`\%$ vs.
+$CV_2 = `r round(cv_fn(arbol2$peso_total),2)`\%$). Ambos CV superan el 25 %, lo que
+indica heterogeneidad considerable en los dos grupos.
+
+**Forma distribucional.** Las distribuciones del peso total e interno presentan
+asimetría negativa en ambos grupos, mientras que el peso de la superficie exhibe
+asimetría positiva, especialmente en el Árbol 2. Los coeficientes de curtosis del peso
+de la superficie en el Árbol 2 superan el valor de referencia de 3 (leptocúrtica),
+consistentes con la presencia de observaciones extremas detectadas en los diagramas de
+caja.
+
+**Estructura de correlación.** La correlación entre peso total y peso interno es muy
+fuerte ($r = `r round(mat_cor["Peso Total","Peso Interno"],4)`$), lo que estadísticamente
+refleja que el peso interno explica la mayor parte de la variación en el peso total. La
+correlación entre peso interno y peso de la superficie es moderada a nivel global
+($r = `r round(mat_cor["Peso Interno","Peso Superficie"],4)`$), pero la diferencia entre
+grupos ($r_1 = `r round(cor(arbol1$peso_interno,arbol1$peso_superficie),4)`$ vs.
+$r_2 = `r round(cor(arbol2$peso_interno,arbol2$peso_superficie),4)`$) indica que en el
+Árbol 2 la proporción interna/superficie varía más entre observaciones.
+
+# Conclusiones
+
+- El Árbol 2 presenta una media de peso total superior al Árbol 1, pero la diferencia
+  es pequeña en relación con la dispersión observada en ambos grupos.
+- El Árbol 1 muestra mayor variabilidad absoluta y relativa en el peso total
+  ($CV_1 = `r round(cv_fn(arbol1$peso_total),2)`\%$ vs.
+  $CV_2 = `r round(cv_fn(arbol2$peso_total),2)`\%$).
+- Las distribuciones del peso total e interno son asimétricas negativas en ambos grupos
+  ($Me > \bar{x}$); la distribución del peso de la superficie es asimétrica positiva.
+- Se identifican valores atípicos en el Árbol 2, en la variable peso de la superficie
+  (dos valores superiores) y peso interno (un valor inferior), asociados a coeficientes
+  de curtosis superiores a 3.
+- La correlación de Pearson entre peso total y peso interno es muy fuerte
+  ($r = `r round(mat_cor["Peso Total","Peso Interno"],4)`$); entre peso interno y peso
+  de la superficie es moderada ($r = `r round(mat_cor["Peso Interno","Peso Superficie"],4)`$),
+  con diferencias notables entre árboles.
+- En conjunto, el análisis descriptivo revela distribuciones heterogéneas y asimétricas
+  en ambos grupos, con el Árbol 2 presentando mayor irregularidad en la estructura
+  interna/superficie de sus frutos.

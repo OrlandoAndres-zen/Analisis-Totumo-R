@@ -1,0 +1,109 @@
+library(openxlsx)
+library(MASS)
+
+datos <- read.xlsx("C:/Users/sasec/Downloads/Totumos_unal.xlsx")
+
+# ══════════════════════════════════════════════════════════════════
+#   FUNCIÓN: histograma + curvas + parámetros + AIC/BIC
+# ══════════════════════════════════════════════════════════════════
+analizar <- function(variable, nombre) {
+  
+  y <- na.omit(variable)
+  x <- seq(min(y), max(y), length.out = 300)
+  
+  # ── Ajuste de distribuciones ──────────────────────────────────
+  fit_nor <- fitdistr(y, "normal")
+  fit_wei <- fitdistr(y, "weibull",
+                      start = list(shape = 1.5,
+                                   scale = mean(y) / gamma(1 + 1/1.5)))
+  m <- mean(y); v <- var(y)
+  fit_gam <- fitdistr(y, "gamma",
+                      start = list(shape = m^2/v, rate = m/v))
+  fit_log <- fitdistr(y, "lognormal")
+  
+  # ── Histograma ────────────────────────────────────────────────
+  hist(y,
+       breaks = 15,
+       freq   = FALSE,
+       main   = paste("Distribuciones ajustadas -", nombre),
+       xlab   = paste(nombre, "(g)"),
+       ylab   = "Densidad",
+       col    = "lightblue",
+       border = "white",
+       xlim   = c(min(y), max(y)))
+  
+  lines(x, dnorm(x,    fit_nor$estimate["mean"],
+                 fit_nor$estimate["sd"]),         col = "red",    lwd = 2)
+  lines(x, dweibull(x, fit_wei$estimate["shape"],
+                    fit_wei$estimate["scale"]),      col = "blue",   lwd = 2)
+  lines(x, dgamma(x,   fit_gam$estimate["shape"],
+                  fit_gam$estimate["rate"]),       col = "green",  lwd = 2)
+  lines(x, dlnorm(x,   fit_log$estimate["meanlog"],
+                  fit_log$estimate["sdlog"]),      col = "purple", lwd = 2)
+  
+  legend("topleft",
+         legend = c("Normal", "Weibull", "Gamma", "Lognormal"),
+         col    = c("red", "blue", "green", "purple"),
+         lwd    = 2, cex = 0.6, bty = "n")
+  
+  # ── Parámetros estimados ──────────────────────────────────────
+  cat("\n╔══════════════════════════════════════╗\n")
+  cat("  PARÁMETROS ESTIMADOS -", nombre, "\n")
+  cat("╚══════════════════════════════════════╝\n")
+  
+  cat("\n▶ Normal:\n")
+  cat("    μ (media) =", round(fit_nor$estimate["mean"], 3), "\n")
+  cat("    σ (sd)    =", round(fit_nor$estimate["sd"],   3), "\n")
+  
+  cat("\n▶ Weibull:\n")
+  cat("    shape (k) =", round(fit_wei$estimate["shape"], 3), "\n")
+  cat("    scale (λ) =", round(fit_wei$estimate["scale"], 3), "\n")
+  
+  cat("\n▶ Gamma:\n")
+  cat("    shape (α)  =", round(fit_gam$estimate["shape"], 3), "\n")
+  cat("    rate  (β)  =", round(fit_gam$estimate["rate"],  3), "\n")
+  cat("    scale(1/β) =", round(1/fit_gam$estimate["rate"], 3), "\n")
+  cat("    Media      =", round(fit_gam$estimate["shape"] /
+                                  fit_gam$estimate["rate"], 2), "g\n")
+  cat("    DE         =", round(sqrt(fit_gam$estimate["shape"] /
+                                       fit_gam$estimate["rate"]^2), 2), "g\n")
+  
+  cat("\n▶ Lognormal:\n")
+  cat("    meanlog (μ) =", round(fit_log$estimate["meanlog"], 3), "\n")
+  cat("    sdlog   (σ) =", round(fit_log$estimate["sdlog"],   3), "\n")
+  
+  # ── AIC y BIC ─────────────────────────────────────────────────
+  n <- length(y)
+  crit <- function(fit, k) {
+    ll <- fit$loglik
+    c(LogLik = round(ll, 2),
+      AIC    = round(-2*ll + 2*k,      2),
+      BIC    = round(-2*ll + k*log(n), 2))
+  }
+  
+  tabla <- rbind(
+    Normal    = crit(fit_nor, 2),
+    Weibull   = crit(fit_wei, 2),
+    Gamma     = crit(fit_gam, 2),
+    Lognormal = crit(fit_log, 2)
+  )
+  
+  cat("\n── AIC y BIC ──────────────────────────\n")
+  print(tabla)
+  cat("\n✔ Mejor ajuste (menor AIC):",
+      rownames(tabla)[which.min(tabla[, "AIC"])], "\n")
+  cat("✔ Mejor ajuste (menor BIC):",
+      rownames(tabla)[which.min(tabla[, "BIC"])], "\n")
+}
+
+# ══════════════════════════════════════════════════════════════════
+#   EJECUTAR PARA LAS 3 VARIABLES
+# ══════════════════════════════════════════════════════════════════
+par(mfrow = c(1, 3))   # 3 gráficas lado a lado
+
+analizar(datos$PESO.TOTAL,      "PESO TOTAL")
+analizar(datos$PESO.INTERNO,    "PESO INTERNO")
+analizar(datos$PESO.SUPERFICIE, "PESO SUPERFICIE")
+
+par(mfrow = c(1, 1))   # restaurar
+
